@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  signInWithCustomToken, 
   signInAnonymously, 
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -15,19 +14,13 @@ import {
   updateDoc, 
   writeBatch 
 } from 'firebase/firestore';
-
-// --- GLOBALS ---
-declare var __firebase_config: any;
-declare var __app_id: any;
-declare var __initial_auth_token: any;
+import firebaseConfig from '../firebase-applet-config.json';
 
 // --- CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE ---
-const hasFirebaseConfig = typeof __firebase_config !== 'undefined';
-const firebaseConfig = hasFirebaseConfig ? JSON.parse(__firebase_config) : null;
-const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
-const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const auth = getAuth(app);
+const appId = 'app-chico-rifa';
 
 export default function App() {
   // --- ESTADOS ---
@@ -68,20 +61,11 @@ export default function App() {
 
   // --- EFEITO 1: AUTENTICAÇÃO SEGURA ANÔNIMA ---
   useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        await signInAnonymously(auth);
       } catch (err) {
-        console.error("Erro ao autenticar com o banco:", err);
-        showNotification("Erro de conexão. Tente atualizar a página.", "error");
+        console.warn("Autenticação anônima desabilitada ou falhou, continuando sem usuário logado.", err);
       }
     };
     initAuth();
@@ -93,7 +77,7 @@ export default function App() {
 
   // --- EFEITO 2: SINCRONIZAÇÃO DAS CONFIGURAÇÕES DA RIFA ---
   useEffect(() => {
-    if (!user || !db) return;
+    if (!db) return;
 
     const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'settings');
     const unsubscribe = onSnapshot(configRef, (docSnap) => {
@@ -121,11 +105,11 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [db]);
 
   // --- EFEITO 3: SINCRONIZAÇÃO EM TEMPO REAL DOS 200 NÚMEROS ---
   useEffect(() => {
-    if (!user || !db) return;
+    if (!db) return;
 
     const ticketsCol = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
     const unsubscribe = onSnapshot(ticketsCol, (snapshot) => {
@@ -154,7 +138,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [db]);
 
   // --- EFEITO 4: INICIALIZAÇÃO LOCAL (SEM FIREBASE) ---
   useEffect(() => {
@@ -184,7 +168,15 @@ export default function App() {
 
   // --- ATUALIZAR CONFIGURAÇÕES ---
   const saveRemoteConfig = async (newKey, newName, newBank, newPrice, newDesc, newPin) => {
-    if (!user) return;
+    setPixKey(newKey);
+    setPixName(newName);
+    setPixBank(newBank);
+    setTicketPrice(parseFloat(newPrice));
+    setCauseDescription(newDesc);
+    setAdminPin(newPin);
+
+    if (!db) return;
+
     try {
       const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'settings');
       await setDoc(configRef, {
@@ -240,7 +232,8 @@ export default function App() {
       showNotification('Preencha seu nome completo para a reserva.', 'error');
       return;
     }
-    if (!user) return;
+
+    if (!db) return;
 
     try {
       const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'tickets', String(selectedNumber));
@@ -273,7 +266,7 @@ export default function App() {
   // --- SALVAR EDIÇÃO DIRETA DO ADM (CLICOU NO NÚMERO) ---
   const handleAdminSaveSingle = async (e) => {
     e.preventDefault();
-    if (!user || !selectedNumber) return;
+    if (!selectedNumber || !db) return;
 
     try {
       const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'tickets', String(selectedNumber));
@@ -306,7 +299,8 @@ export default function App() {
 
   // --- REMOVER/LIBERAR NÚMERO COM UM TOQUE (ADMIN) ---
   const handleAdminQuickRelease = async () => {
-    if (!user || !selectedNumber) return;
+    if (!selectedNumber || !db) return;
+
     try {
       const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'tickets', String(selectedNumber));
       await setDoc(ticketRef, {
@@ -339,9 +333,8 @@ export default function App() {
 
   // --- RESETAR TODA A RIFA DO CHICO ---
   const handleResetAll = async () => {
-    if (!user) return;
     const confirmReset = window.confirm('🚨 ALERTA: Você tem certeza que quer APAGAR todos os compradores e limpar a Rifa do Chico por completo?');
-    if (!confirmReset) return;
+    if (!confirmReset || !db) return;
 
     try {
       const batch = writeBatch(db);

@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Config": {
+      "title": "Config Settings",
+      "description": "Global config settings like ticket price",
+      "type": "object",
+      "properties": {
+        "pixKey": { "type": "string" },
+        "pixName": { "type": "string" },
+        "pixBank": { "type": "string" },
+        "ticketPrice": { "type": "number" },
+        "causeDescription": { "type": "string" },
+        "adminPin": { "type": "string" }
+      }
+    },
+    "Ticket": {
+      "title": "Raffle Ticket",
+      "description": "A single ticket in the raffle",
+      "type": "object",
+      "properties": {
+        "number": { "type": "number" },
+        "status": { "type": "string", "enum": ["available", "pending", "approved"] },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "firestore": {
+    "/artifacts/app-chico-rifa/public/data/config/settings": {
+      "schema": { "$ref": "#/entities/Config" },
+      "description": "Global Settings"
+    },
+    "/artifacts/app-chico-rifa/public/data/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Tickets"
+    }
+  }
+}
