@@ -45,6 +45,7 @@ export default function App() {
   const [pixName, setPixName] = useState('Diogo Pereira de Farias');
   const [pixBank, setPixBank] = useState('C6 Bank');
   const [ticketPrice, setTicketPrice] = useState(30.00);
+  const [causeDescription, setCauseDescription] = useState('O Chico perdeu 12kg e está enfrentando uma batalha pesada de saúde. Todo o valor desta rifa é para a sua cirurgia e exames.');
   const [adminPin, setAdminPin] = useState('1234');
 
   // Formulário do Comprador Comum
@@ -55,12 +56,6 @@ export default function App() {
   const [adminEditName, setAdminEditName] = useState('');
   const [adminEditPhone, setAdminEditPhone] = useState('');
   const [adminEditStatus, setAdminEditStatus] = useState('available');
-  
-  // Lançador rápido do Admin (Bulk)
-  const [adminBulkNumbers, setAdminBulkNumbers] = useState('');
-  const [adminBulkName, setAdminBulkName] = useState('');
-  const [adminBulkPhone, setAdminBulkPhone] = useState('');
-  const [adminBulkStatus, setAdminBulkStatus] = useState('approved');
 
   // Notificações em Toast
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -108,6 +103,7 @@ export default function App() {
         if (data.pixName) setPixName(data.pixName);
         if (data.pixBank) setPixBank(data.pixBank);
         if (data.ticketPrice) setTicketPrice(parseFloat(data.ticketPrice));
+        if (data.causeDescription) setCauseDescription(data.causeDescription);
         if (data.adminPin) setAdminPin(data.adminPin);
       } else {
         // Criação inicial das configurações com base no cartaz do Chico
@@ -116,6 +112,7 @@ export default function App() {
           pixName: 'Diogo Pereira de Farias',
           pixBank: 'C6 Bank',
           ticketPrice: 30.00,
+          causeDescription: 'O Chico perdeu 12kg e está enfrentando uma batalha pesada de saúde. Todo o valor desta rifa é para a sua cirurgia e exames.',
           adminPin: '1234'
         }).catch(err => console.error("Falha ao salvar config padrão:", err));
       }
@@ -186,7 +183,7 @@ export default function App() {
   }, [selectedNumber, numbers]);
 
   // --- ATUALIZAR CONFIGURAÇÕES ---
-  const saveRemoteConfig = async (newKey, newName, newBank, newPrice, newPin) => {
+  const saveRemoteConfig = async (newKey, newName, newBank, newPrice, newDesc, newPin) => {
     if (!user) return;
     try {
       const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'settings');
@@ -195,6 +192,7 @@ export default function App() {
         pixName: newName,
         pixBank: newBank,
         ticketPrice: parseFloat(newPrice),
+        causeDescription: newDesc,
         adminPin: newPin
       }, { merge: true });
       showNotification("Configurações atualizadas com sucesso!");
@@ -339,66 +337,6 @@ export default function App() {
     }
   };
 
-  // --- REGISTRO MANUAL DE VÁRIOS NÚMEROS DE UMA VEZ (LOTE) ---
-  const handleBulkAdd = async (e) => {
-    e.preventDefault();
-    if (!adminBulkNumbers.trim() || !adminBulkName.trim()) {
-      showNotification('Informe os números e o nome do comprador.', 'error');
-      return;
-    }
-    if (!user) return;
-
-    const parts = adminBulkNumbers.split(',');
-    const parsedNumbers = [];
-
-    parts.forEach(part => {
-      const cleanPart = part.trim();
-      if (cleanPart.includes('-')) {
-        const range = cleanPart.split('-');
-        if (range.length === 2) {
-          const start = parseInt(range[0].trim(), 10);
-          const end = parseInt(range[1].trim(), 10);
-          if (!isNaN(start) && !isNaN(end) && start <= end) {
-            for (let i = start; i <= end; i++) parsedNumbers.push(i);
-          }
-        }
-      } else {
-        const num = parseInt(cleanPart, 10);
-        if (!isNaN(num)) parsedNumbers.push(num);
-      }
-    });
-
-    const validNumbers = [...new Set(parsedNumbers)].filter(n => n >= 1 && n <= 200);
-
-    if (validNumbers.length === 0) {
-      showNotification('Informe números válidos no intervalo de 1 a 200.', 'error');
-      return;
-    }
-
-    try {
-      const batch = writeBatch(db);
-      validNumbers.forEach(n => {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tickets', String(n));
-        batch.set(docRef, {
-          number: n,
-          status: adminBulkStatus,
-          name: adminBulkName,
-          phone: adminBulkPhone,
-          createdAt: new Date().toISOString()
-        });
-      });
-
-      await batch.commit();
-      showNotification(`${validNumbers.length} número(s) registrados simultaneamente!`);
-      setAdminBulkNumbers('');
-      setAdminBulkName('');
-      setAdminBulkPhone('');
-    } catch (err) {
-      console.error(err);
-      showNotification("Erro ao salvar números em lote.", "error");
-    }
-  };
-
   // --- RESETAR TODA A RIFA DO CHICO ---
   const handleResetAll = async () => {
     if (!user) return;
@@ -510,7 +448,7 @@ export default function App() {
                 Nosso Guerreiro Chico precisa de nós!
                 <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-max">Meta Solidária</span>
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">O Chico perdeu 12kg e está enfrentando uma batalha pesada de saúde. Todo o valor desta rifa é para a sua cirurgia e exames.</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">{causeDescription}</p>
             </div>
             <div className="space-y-1.5">
               <div className="flex justify-between text-[11px] sm:text-xs font-bold text-[#4a2e1b]">
@@ -574,7 +512,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-white/45 p-3 rounded-xl border border-[#d6c7b3] mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 bg-white/45 p-3 rounded-xl border border-[#d6c7b3] mb-4">
               <div>
                 <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Chave Pix</label>
                 <input type="text" value={pixKey} onChange={(e) => setPixKey(e.target.value)} className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs text-[#4a2e1b]" />
@@ -587,33 +525,29 @@ export default function App() {
                 <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Banco</label>
                 <input type="text" value={pixBank} onChange={(e) => setPixBank(e.target.value)} className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs text-[#4a2e1b]" />
               </div>
+              <div>
+                <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Valor Rifa (R$)</label>
+                <input type="number" step="0.01" value={ticketPrice} onChange={(e) => setTicketPrice(parseFloat(e.target.value) || 0)} className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs text-[#4a2e1b]" />
+              </div>
+              <div>
+                <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Senha Admin</label>
+                <input type="text" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs text-[#4a2e1b]" />
+              </div>
               <div className="flex items-end">
-                <button onClick={() => saveRemoteConfig(pixKey, pixName, pixBank, ticketPrice, adminPin)} className="w-full bg-emerald-700 hover:bg-emerald-600 transition text-white text-[10px] sm:text-xs font-bold py-2 rounded-lg">
-                  Confirmar Pix
+                <button onClick={() => saveRemoteConfig(pixKey, pixName, pixBank, ticketPrice, causeDescription, adminPin)} className="w-full bg-emerald-700 hover:bg-emerald-600 transition text-white text-[10px] sm:text-xs font-bold py-2 rounded-lg">
+                  Salvar
                 </button>
               </div>
+              <div className="md:col-span-6">
+                <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Descrição do Propósito da Rifa</label>
+                <textarea 
+                  value={causeDescription} 
+                  onChange={(e) => setCauseDescription(e.target.value)} 
+                  className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs text-[#4a2e1b]" 
+                  rows={2}
+                />
+              </div>
             </div>
-
-            <form onSubmit={handleBulkAdd} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-white/45 p-3 rounded-xl border border-[#d6c7b3]">
-              <div className="md:col-span-4">
-                <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Lote (Ex: 10, 24, 40-45)</label>
-                <input type="text" value={adminBulkNumbers} onChange={(e) => setAdminBulkNumbers(e.target.value)} placeholder="Ex: 5, 20-25" className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs text-[#4a2e1b]" />
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Nome</label>
-                <input type="text" value={adminBulkName} onChange={(e) => setAdminBulkName(e.target.value)} placeholder="Comprador" className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs focus:outline-none text-[#4a2e1b]" />
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-[9px] sm:text-[10px] font-bold uppercase text-[#543c2c] mb-1">Status Lote</label>
-                <select value={adminBulkStatus} onChange={(e) => setAdminBulkStatus(e.target.value)} className="w-full border border-[#c4b39b] rounded-lg px-2 py-1.5 text-xs focus:outline-none text-[#4a2e1b]">
-                  <option value="approved">Pago</option>
-                  <option value="pending">Pendente</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <button type="submit" className="w-full bg-[#4a2e1b] hover:bg-[#5c3a22] transition text-white text-[10px] sm:text-xs font-bold py-2 rounded-lg">Salvar Lote</button>
-              </div>
-            </form>
           </section>
         )}
 
